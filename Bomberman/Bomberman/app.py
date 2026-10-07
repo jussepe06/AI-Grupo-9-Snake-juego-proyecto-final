@@ -17,6 +17,9 @@ if __name__ == "__main__" and not streamlit.runtime.exists():
 
 from bomberman_env import Entorno, MURO, BLOQUE
 from agentes import AGENTES
+import database
+import time
+import uuid
 
 CELDA = 50
 _teclado = components.declare_component("teclado", path=str(Path(__file__).parent / "componente_teclado"))
@@ -306,6 +309,8 @@ def nueva_partida():
     ss.agentes = {i: AGENTES[n](ss.get("semilla", 0) * 100 + i) for i, n in enumerate(nombres) if n != "Humano"}
     ss.fuego = set()
     ss.pausado = False
+    ss.id_partida = str(uuid.uuid4())[:8] # ID único para el dataset
+    ss.partida_guardada = False
 
 
 def alternar_pausa():
@@ -317,17 +322,42 @@ def jugar_turno(accion_humana="quieto"):
     if env.terminado:
         return
     acciones = {}
+    
+    # Recolección de Decisiones para el Dataset
     for p in env.vivos():
+        estado = env.percibir(p.id)
         if p.nombre == "Humano":
             acciones[p.id] = accion_humana
         else:
-            estado = env.percibir(p.id)
-            acciones[p.id] = ss.agentes[p.id].decidir(estado, p.id)
+            start_t = time.perf_counter()
+            accion = ss.agentes[p.id].decidir(estado, p.id)
+            inf_time = (time.perf_counter() - start_t) * 1000
+            nodos = getattr(ss.agentes[p.id], "nodos_expandidos", 0)
+            acciones[p.id] = accion
+            
+            # Guardamos la inferencia del Agente en la DB (Data Logger Fase 2)
+            database.guardar_decision(
+                ss.id_partida, env.turno, p.id, p.nombre, estado, nodos, inf_time, accion
+            )
+
     ss.fuego = set()
     for b in env.bombas:
         if b.timer == 1:
             ss.fuego |= env._celdas_explosion(b)[0]
     env.paso(acciones)
+    
+    # Revisar si el juego terminó para guardar la partida
+    if env.terminado and not ss.get("partida_guardada", False):
+        ganador = env.participantes[env.ganador_equipo].nombre if env.ganador_equipo is not None else "Ninguno"
+        database.guardar_partida(
+            ss.id_partida, 
+            env.participantes[0].nombre, 
+            env.participantes[1].nombre, 
+            ganador, 
+            env.turno, 
+            env.motivo_fin
+        )
+        ss.partida_guardada = True
 
 
 # ==============================================================================
@@ -631,7 +661,11 @@ with st.sidebar:
     st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
     st.button("REINICIAR SIMULACIÓN", on_click=nueva_partida, use_container_width=True)
 
-# Inicialización segura
+# Inicialización segura de BD y Entorno
+if "db_inicializada" not in st.session_state:
+    database.inicializar_db()
+    st.session_state.db_inicializada = True
+
 if "env" not in st.session_state:
     nueva_partida()
 env, ss = st.session_state.env, st.session_state
@@ -667,8 +701,12 @@ if v and (v["sesion"], v["n"]) != ss.get("visto") and not ss.pausado:
     ss.visto = (v["sesion"], v["n"])
     jugar_turno(v["tecla"] or "quieto")
 
-# Distribución del Tablero y Panel de Control
-col_tablero, col_hud = st.columns([3, 1.4])
+# Creamos las Pestañas (Fase 1 y Fase 2 de mejoras UI)
+tab_juego, tab_telemetria = st.tabs(["🎮 ARENA DE COMBATE", "📊 BASE DE DATOS (DATASET ML)"])
+
+with tab_juego:
+    # Distribución del Tablero y Panel de Control
+    col_tablero, col_hud = st.columns([3, 1.4])
 
 with col_tablero:
     _teclado(
@@ -765,3 +803,30 @@ with col_hud:
     # Botón de Pausa / Reanudación
     texto_pausa = "REANUDAR SIMULACIÓN" if ss.pausado else "PAUSAR SIMULACIÓN"
     st.button(texto_pausa, on_click=alternar_pausa, use_container_width=True)
+
+with tab_telemetria:
+    st.markdown("<div class='brand-title'>HISTORIAL DE DECISIONES Y PARTIDAS (SQLite + Pandas)</div>", unsafe_allow_html=True)
+    st.markdown("Este dashboard extrae la información en tiempo real desde `telemetria.db`. Aquí se almacenarán las decisiones maestras de los Agentes Lógicos para entrenar modelos de Machine Learning (Fase Semestral Final).")
+    
+    col_db1, col_db2 = st.columns(2)
+    
+    with col_db1:
+        st.subheader("📋 Resumen de Partidas")
+        df_partidas = database.obtener_dataframe_partidas()
+        if not df_partidas.empty:
+            st.dataframe(df_partidas, use_container_width=True)
+        else:
+            st.info("Aún no ha finalizado ninguna partida.")
+            
+    with col_db2:
+        st.subheader("🧠 Dataset de Entrenamiento (Decisiones)")
+        df_decisiones = database.obtener_dataframe_decisiones()
+        if not df_decisiones.empty:
+            st.dataframe(df_decisiones.tail(50), use_container_width=True)
+            st.caption("Mostrando las últimas 50 decisiones registradas en la DB.")
+        else:
+            st.info("El agente aún no ha tomado decisiones o todos son humanos.")
+            
+    if not df_decisiones.empty:
+        st.subheader("📈 Rendimiento Cognitivo (Nodos Expandidos)")
+        st.line_chart(df_decisiones.set_index("turno")["nodos_expandidos"])
