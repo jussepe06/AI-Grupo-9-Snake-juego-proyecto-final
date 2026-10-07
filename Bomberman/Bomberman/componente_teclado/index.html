@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700;800&family=Outfit:wght@400;500;600&display=swap');
+
+  * { box-sizing: border-box; user-select: none; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    font-family: 'Outfit', -apple-system, sans-serif;
+    color: #e2e8f0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Marco Táctico Exterior */
+  .arena-wrapper {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    background: radial-gradient(circle at 50% 20%, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.98));
+    border-radius: 20px;
+    padding: 12px 16px 14px;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 35px rgba(56, 189, 248, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    outline: none;
+  }
+  .arena-wrapper:focus {
+    border-color: rgba(56, 189, 248, 0.55);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 35px rgba(56, 189, 248, 0.2);
+  }
+
+  /* Esquineros futuristas */
+  .arena-wrapper::before, .arena-wrapper::after {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-color: #38bdf8;
+    pointer-events: none;
+  }
+  .arena-wrapper::before {
+    top: 6px; left: 6px;
+    border-top: 2px solid #38bdf8;
+    border-left: 2px solid #38bdf8;
+    border-top-left-radius: 6px;
+  }
+  .arena-wrapper::after {
+    bottom: 6px; right: 6px;
+    border-bottom: 2px solid #38bdf8;
+    border-right: 2px solid #38bdf8;
+    border-bottom-right-radius: 6px;
+  }
+
+  /* Barra Superior de Telemetría */
+  .hud-top {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 6px 8px;
+    font-size: 11px;
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .hud-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #94a3b8;
+  }
+  .beacon {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+    animation: beaconPulse 1.4s infinite alternate;
+  }
+  .beacon.paused {
+    background: #f59e0b;
+    box-shadow: 0 0 8px #f59e0b;
+  }
+  @keyframes beaconPulse {
+    from { opacity: 0.4; transform: scale(0.85); }
+    to { opacity: 1; transform: scale(1.15); }
+  }
+
+  .focus-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    transition: all 0.2s ease;
+  }
+  .focus-badge.unfocused {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #f59e0b;
+  }
+
+  .audio-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #94a3b8;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+  }
+  .audio-btn:hover {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+  }
+
+  /* Contenedor del Tablero SVG */
+  #tab {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  /* Panel de Controles / Teclas Visuales e Interactivas */
+  .hud-controls-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 10px;
+    padding: 6px 12px;
+    background: rgba(15, 23, 42, 0.7);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 10px;
+  }
+
+  .dpad-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dpad-label {
+    font-size: 10px;
+    font-family: 'Rajdhani', sans-serif;
+    color: #64748b;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-right: 2px;
+  }
+
+  .ctrl-btn {
+    padding: 5px 10px;
+    border-radius: 7px;
+    font-size: 11px;
+    font-family: 'Rajdhani', monospace;
+    font-weight: 800;
+    color: #cbd5e1;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 2px 0 rgba(0,0,0,0.5);
+    cursor: pointer;
+    transition: all 0.06s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .ctrl-btn:hover {
+    background: #334155;
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #ffffff;
+  }
+  .ctrl-btn:active, .ctrl-btn.active {
+    background: #0284c7;
+    color: #ffffff;
+    border-color: #38bdf8;
+    box-shadow: 0 0 14px #38bdf8, inset 0 0 6px #ffffff;
+    transform: translateY(2px);
+  }
+
+  .ctrl-btn.bomb-btn {
+    background: linear-gradient(135deg, rgba(225, 29, 72, 0.35), rgba(159, 18, 57, 0.5));
+    border-color: rgba(244, 63, 94, 0.4);
+    color: #fecdd3;
+    letter-spacing: 1px;
+    padding: 5px 14px;
+  }
+  .ctrl-btn.bomb-btn:hover {
+    background: linear-gradient(135deg, rgba(225, 29, 72, 0.6), rgba(159, 18, 57, 0.8));
+    border-color: #f43f5e;
+    color: #ffffff;
+  }
+  .ctrl-btn.bomb-btn:active, .ctrl-btn.bomb-btn.active {
+    background: #e11d48;
+    color: #ffffff;
+    border-color: #f43f5e;
+    box-shadow: 0 0 16px #f43f5e, inset 0 0 8px #ffffff;
+    transform: translateY(2px);
+  }
+</style>
+</head>
+<body>
+
+<div class="arena-wrapper" id="arenaWrapper" tabindex="0" autofocus title="Haz clic aquí para enfocar controles">
+  <div class="hud-top">
+    <div class="hud-status">
+      <div class="beacon" id="beaconDot"></div>
+      <span id="hudMsg">TACTICAL SIMULATION ACTIVE</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span class="focus-badge" id="focusIndicator">CONTROLES ACTIVOS</span>
+      <button class="audio-btn" id="audioToggle" title="Activar/Silenciar efectos tácticos">
+        <svg id="audioIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        <span id="audioLabel">AUDIO ON</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="tab"></div>
+
+  <!-- Controles interactivos híbridos: reaccionan al teclado y se pueden presionar con clic -->
+  <div class="hud-controls-panel">
+    <div class="dpad-container">
+      <span class="dpad-label">MOVIMIENTO:</span>
+      <button type="button" class="ctrl-btn" id="btnW" data-accion="arriba">W / ↑</button>
+      <button type="button" class="ctrl-btn" id="btnA" data-accion="izquierda">A / ←</button>
+      <button type="button" class="ctrl-btn" id="btnS" data-accion="abajo">S / ↓</button>
+      <button type="button" class="ctrl-btn" id="btnD" data-accion="derecha">D / →</button>
+    </div>
+    <div>
+      <button type="button" class="ctrl-btn bomb-btn" id="btnSpace" data-accion="poner_bomba">ESPACIO · BOMBA</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Motor de entrada táctica de alta precisión: 1 pulsación = exactamente 1 movimiento
+const sesion = Math.random().toString(36).slice(2);
+let n = 0;
+let teclaPulsada = null;          // Tecla que se mantiene activamente presionada
+let tiempoInicioPulsacion = 0;    // Timestamp de cuándo se comenzó a presionar
+let accionPendiente = null;       // Buffer estricto: 1 movimiento garantizado por pulsación física
+let bombaPendiente = false;       // Buffer estricto para bomba
+let timer = null;
+let estaActivo = true;
+let tickIntervalMs = 350;
+let ultimoTickTiempo = 0;
+const MIN_COOLDOWN_MS = 100;      // Cooldown mínimo para responder al toque del jugador
+const REPEAT_DELAY_MS = 300;      // Retraso de repetición: solo camina continuo si se mantiene sostenida > 300ms
+
+// Mapeador universal de teclas físicas y caracteres
+function traducirEventoTecla(e) {
+  if (e.code === "Space" || e.key === " " || e.key === "Spacebar" || e.code === "Numpad0") {
+    return "poner_bomba";
+  }
+
+  const codeMap = {
+    KeyW: "arriba", ArrowUp: "arriba", Numpad8: "arriba",
+    KeyS: "abajo", ArrowDown: "abajo", Numpad2: "abajo",
+    KeyA: "izquierda", ArrowLeft: "izquierda", Numpad4: "izquierda",
+    KeyD: "derecha", ArrowRight: "derecha", Numpad6: "derecha"
+  };
+  if (codeMap[e.code]) return codeMap[e.code];
+
+  const k = (e.key || "").toLowerCase();
+  const keyMap = {
+    w: "arriba", arrowup: "arriba", up: "arriba",
+    s: "abajo", arrowdown: "abajo", down: "abajo",
+    a: "izquierda", arrowleft: "izquierda", left: "izquierda",
+    d: "derecha", arrowright: "derecha", right: "derecha"
+  };
+  return keyMap[k] || null;
+}
+
+// Síntesis de Sonido Web Audio
+let audioCtx = null;
+let soundEnabled = true;
+
+function initAudio() {
+  if (!audioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) audioCtx = new AudioContextClass();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+function playStepSound() {
+  if (!soundEnabled || !audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(160, audioCtx.currentTime + 0.05);
+    gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.05);
+  } catch(e) {}
+}
+
+function playBombPlantSound() {
+  if (!soundEnabled || !audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(540, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1020, audioCtx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.09, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.12);
+  } catch(e) {}
+}
+
+const audioBtn = document.getElementById("audioToggle");
+const audioLabel = document.getElementById("audioLabel");
+audioBtn.addEventListener("click", () => {
+  initAudio();
+  soundEnabled = !soundEnabled;
+  audioLabel.textContent = soundEnabled ? "AUDIO ON" : "MUTED";
+  audioBtn.style.color = soundEnabled ? "#38bdf8" : "#64748b";
+});
+
+// Actualización visual de botones
+function actualizarBotonesHUD() {
+  const btnW = document.getElementById("btnW");
+  const btnS = document.getElementById("btnS");
+  const btnA = document.getElementById("btnA");
+  const btnD = document.getElementById("btnD");
+  const btnSpace = document.getElementById("btnSpace");
+  if (!btnW) return;
+
+  btnW.classList.toggle("active", teclaPulsada === "arriba" || accionPendiente === "arriba");
+  btnS.classList.toggle("active", teclaPulsada === "abajo" || accionPendiente === "abajo");
+  btnA.classList.toggle("active", teclaPulsada === "izquierda" || accionPendiente === "izquierda");
+  btnD.classList.toggle("active", teclaPulsada === "derecha" || accionPendiente === "derecha");
+  btnSpace.classList.toggle("active", bombaPendiente);
+}
+
+const enviar = (tipo, datos) => window.parent.postMessage(Object.assign({isStreamlitMessage: true, type: tipo}, datos), "*");
+
+function enviarTick(teclaAccion) {
+  if (!estaActivo) return;
+  ultimoTickTiempo = Date.now();
+  n++;
+  enviar("streamlit:setComponentValue", {value: {sesion, n, tecla: teclaAccion}, dataType: "json"});
+}
+
+// Tick periódico (Reloj del juego)
+function ejecutarTickReloj() {
+  clearTimeout(timer);
+  if (!estaActivo) return;
+
+  let accionAEnviar = null;
+
+  if (bombaPendiente) {
+    accionAEnviar = "poner_bomba";
+    bombaPendiente = false;
+  } else if (accionPendiente) {
+    // Se ejecuta la pulsación física pendiente y se consume de inmediato
+    accionAEnviar = accionPendiente;
+    accionPendiente = null;
+  } else if (teclaPulsada) {
+    // Si la tecla continúa activamente sostenida por más de REPEAT_DELAY_MS, permite paso continuo
+    const tiempoMantenida = Date.now() - tiempoInicioPulsacion;
+    if (tiempoMantenida >= REPEAT_DELAY_MS) {
+      accionAEnviar = teclaPulsada;
+    }
+  }
+
+  actualizarBotonesHUD();
+  enviarTick(accionAEnviar);
+}
+
+// Respuesta inmediata al toque del jugador si ya pasó el cooldown
+function ejecutarTickInmediato(accion) {
+  const ahora = Date.now();
+  if (ahora - ultimoTickTiempo >= MIN_COOLDOWN_MS) {
+    clearTimeout(timer);
+    // Consumir inmediatamente la acción pendiente para evitar duplicados
+    if (accion === "poner_bomba") {
+      bombaPendiente = false;
+    } else {
+      accionPendiente = null;
+    }
+    actualizarBotonesHUD();
+    enviarTick(accion);
+  }
+}
+
+// Manejadores de teclado
+function manejarKeyDown(e) {
+  if (/INPUT|TEXTAREA|SELECT/.test((e.target.tagName || ""))) return;
+  // IGNORAR la repetición automática del sistema operativo (evita pasos fantasma al presionar)
+  if (e.repeat) return;
+
+  const accion = traducirEventoTecla(e);
+  if (!accion) return;
+
+  e.preventDefault();
+  initAudio();
+  if (!estaActivo) return;
+
+  if (accion === "poner_bomba") {
+    bombaPendiente = true;
+    playBombPlantSound();
+    actualizarBotonesHUD();
+    ejecutarTickInmediato("poner_bomba");
+    return;
+  }
+
+  // Tecla de movimiento: registrar exactamente 1 movimiento pendiente
+  teclaPulsada = accion;
+  tiempoInicioPulsacion = Date.now();
+  accionPendiente = accion;
+  playStepSound();
+  actualizarBotonesHUD();
+
+  ejecutarTickInmediato(accion);
+}
+
+function manejarKeyUp(e) {
+  const accion = traducirEventoTecla(e);
+  if (!accion) return;
+
+  if (accion === "poner_bomba") {
+    setTimeout(() => { bombaPendiente = false; actualizarBotonesHUD(); }, 80);
+    return;
+  }
+
+  if (teclaPulsada === accion) {
+    teclaPulsada = null; // Tecla liberada
+  }
+  actualizarBotonesHUD();
+}
+
+// Botones interactivos en pantalla
+document.querySelectorAll(".ctrl-btn").forEach(btn => {
+  const accion = btn.dataset.accion;
+  btn.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    initAudio();
+    if (!estaActivo) return;
+    if (accion === "poner_bomba") {
+      bombaPendiente = true;
+      playBombPlantSound();
+      ejecutarTickInmediato("poner_bomba");
+    } else {
+      teclaPulsada = accion;
+      tiempoInicioPulsacion = Date.now();
+      accionPendiente = accion;
+      playStepSound();
+      ejecutarTickInmediato(accion);
+    }
+    actualizarBotonesHUD();
+  });
+  btn.addEventListener("mouseup", () => {
+    if (accion !== "poner_bomba" && teclaPulsada === accion) {
+      teclaPulsada = null;
+    }
+    actualizarBotonesHUD();
+  });
+  btn.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    initAudio();
+    if (!estaActivo) return;
+    if (accion === "poner_bomba") {
+      bombaPendiente = true;
+      playBombPlantSound();
+      ejecutarTickInmediato("poner_bomba");
+    } else {
+      teclaPulsada = accion;
+      tiempoInicioPulsacion = Date.now();
+      accionPendiente = accion;
+      playStepSound();
+      ejecutarTickInmediato(accion);
+    }
+    actualizarBotonesHUD();
+  });
+  btn.addEventListener("touchend", () => {
+    if (accion !== "poner_bomba" && teclaPulsada === accion) {
+      teclaPulsada = null;
+    }
+    actualizarBotonesHUD();
+  });
+});
+
+// Foco en la arena
+const arenaWrapper = document.getElementById("arenaWrapper");
+const focusIndicator = document.getElementById("focusIndicator");
+
+function actualizarEstadoFoco(tieneFoco) {
+  if (focusIndicator) {
+    if (tieneFoco) {
+      focusIndicator.textContent = "CONTROLES ACTIVOS";
+      focusIndicator.classList.remove("unfocused");
+    } else {
+      focusIndicator.textContent = "CLIC PARA ENFOCAR";
+      focusIndicator.classList.add("unfocused");
+    }
+  }
+}
+
+arenaWrapper.addEventListener("click", () => {
+  arenaWrapper.focus();
+  window.focus();
+  actualizarEstadoFoco(true);
+});
+window.addEventListener("focus", () => actualizarEstadoFoco(true));
+window.addEventListener("blur", () => actualizarEstadoFoco(false));
+
+const objetivosEscucha = [window, document];
+try {
+  if (window.parent && window.parent !== window) {
+    objetivosEscucha.push(window.parent);
+    if (window.parent.document) objetivosEscucha.push(window.parent.document);
+  }
+} catch(e) {}
+
+objetivosEscucha.forEach(obj => {
+  try {
+    obj.addEventListener("keydown", manejarKeyDown, { passive: false });
+    obj.addEventListener("keyup", manejarKeyUp, { passive: false });
+  } catch(e) {}
+});
+
+// Recepción de estado desde Streamlit
+window.addEventListener("message", ev => {
+  if (ev.data.type !== "streamlit:render") return;
+  const a = ev.data.args;
+
+  estaActivo = a.activo;
+  tickIntervalMs = a.tick_ms || 350;
+
+  document.getElementById("tab").innerHTML = a.svg;
+  document.getElementById("hudMsg").textContent = a.mensaje || "TACTICAL ARENA ACTIVE";
+
+  const beacon = document.getElementById("beaconDot");
+  if (a.mensaje && a.mensaje.includes("PAUSADA")) {
+    beacon.classList.add("paused");
+  } else {
+    beacon.classList.remove("paused");
+  }
+
+  const alturaTotal = Math.max(a.alto + 95, 520);
+  enviar("streamlit:setFrameHeight", {height: alturaTotal});
+
+  // Reprogramar tick periódico
+  clearTimeout(timer);
+  if (estaActivo) {
+    timer = setTimeout(ejecutarTickReloj, tickIntervalMs);
+  }
+});
+
+window.focus();
+arenaWrapper.focus();
+actualizarEstadoFoco(true);
+enviar("streamlit:componentReady", {apiVersion: 1});
+</script>
+</body>
+</html>
